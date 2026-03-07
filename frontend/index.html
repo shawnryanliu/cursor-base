@@ -24,31 +24,74 @@
       padding: 12px 8px;
       flex-shrink: 0;
     }
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 8px 12px;
+    }
     .sidebar-title {
       font-size: 0.85rem;
       font-weight: 600;
       color: #8e8ea0;
-      padding: 8px 12px;
       letter-spacing: 0.05em;
     }
     .new-chat-btn {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
-      border-radius: 8px;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
       cursor: pointer;
-      font-size: 0.9rem;
-      color: #ececec;
       background: none;
       border: none;
-      width: 100%;
-      text-align: left;
-      transition: background 0.15s;
-      margin-bottom: 4px;
+      color: #8e8ea0;
+      transition: background 0.15s, color 0.15s;
     }
-    .new-chat-btn:hover { background: #2a2a2a; }
-    .new-chat-btn svg { flex-shrink: 0; }
+    .new-chat-btn:hover { background: #2a2a2a; color: #ececec; }
+
+    .conv-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .conv-list::-webkit-scrollbar { width: 4px; }
+    .conv-list::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+    .conv-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      color: #adadad;
+      transition: background 0.15s;
+      gap: 8px;
+    }
+    .conv-item:hover { background: #2a2a2a; color: #ececec; }
+    .conv-item.active { background: #2a2a2a; color: #ececec; }
+    .conv-item-title {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .conv-delete {
+      opacity: 0;
+      background: none;
+      border: none;
+      color: #8e8ea0;
+      cursor: pointer;
+      padding: 2px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+    }
+    .conv-item:hover .conv-delete { opacity: 1; }
+    .conv-delete:hover { color: #f87171; background: #3a2a2a; }
 
     /* Main area */
     .main {
@@ -100,9 +143,8 @@
       font-size: 0.95rem;
       white-space: pre-wrap;
       word-break: break-word;
+      color: #ececec;
     }
-    .bubble.user { color: #ececec; }
-    .bubble.ai { color: #ececec; }
     .bubble.error { color: #f87171; }
 
     /* Empty state */
@@ -165,11 +207,10 @@
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      transition: background 0.15s, opacity 0.15s;
+      transition: background 0.15s;
     }
     .send-btn:hover { background: #15a367; }
     .send-btn:disabled { background: #3a3a3a; cursor: not-allowed; opacity: 0.6; }
-    .send-btn svg { color: #fff; }
 
     .hint {
       text-align: center;
@@ -203,13 +244,15 @@
 
   <!-- Sidebar -->
   <div class="sidebar">
-    <div class="sidebar-title">MiniMax Chat</div>
-    <button class="new-chat-btn" onclick="newChat()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-      新对话
-    </button>
+    <div class="sidebar-header">
+      <span class="sidebar-title">MiniMax Chat</span>
+      <button class="new-chat-btn" onclick="newChat()" title="新对话">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="conv-list" id="conv-list"></div>
   </div>
 
   <!-- Main -->
@@ -235,63 +278,124 @@
           </svg>
         </button>
       </div>
-      <div class="hint">按 Enter 换行，Ctrl+Enter 或点击按钮发送</div>
+      <div class="hint">Ctrl+Enter 发送</div>
     </div>
   </div>
 
   <script>
     const BACKEND_URL = "http://43.160.235.189:4000";
+    let currentConvId = null;
     let isLoading = false;
 
     const promptEl = document.getElementById("prompt");
     const sendBtn = document.getElementById("send-btn");
     const messagesEl = document.getElementById("messages");
     const emptyState = document.getElementById("empty-state");
+    const convList = document.getElementById("conv-list");
 
-    // Auto resize textarea
-    function autoResize(el) {
-      el.style.height = "auto";
-      el.style.height = Math.min(el.scrollHeight, 200) + "px";
-      sendBtn.disabled = el.value.trim() === "" || isLoading;
+    // ── Init ──────────────────────────────────────────
+    loadConversations();
+
+    // ── Sidebar ───────────────────────────────────────
+    async function loadConversations() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/conversations`);
+        const convs = await res.json();
+        renderConvList(convs);
+      } catch {
+        console.error("Failed to load conversations");
+      }
     }
 
-    promptEl.addEventListener("input", () => autoResize(promptEl));
-    promptEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendPrompt();
-    });
+    function renderConvList(convs) {
+      convList.innerHTML = "";
+      convs.forEach((c) => {
+        const item = document.createElement("div");
+        item.className = "conv-item" + (c.id === currentConvId ? " active" : "");
+        item.dataset.id = c.id;
+        item.innerHTML = `
+          <span class="conv-item-title">${escHtml(c.title)}</span>
+          <button class="conv-delete" onclick="deleteConv(event, '${c.id}')" title="删除">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+              <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+            </svg>
+          </button>
+        `;
+        item.addEventListener("click", () => openConversation(c.id));
+        convList.appendChild(item);
+      });
+    }
 
-    function newChat() {
+    async function openConversation(id) {
+      currentConvId = id;
+      document.querySelectorAll(".conv-item").forEach((el) => {
+        el.classList.toggle("active", el.dataset.id === id);
+      });
+      clearMessages();
+
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/conversations/${id}/messages`);
+        const msgs = await res.json();
+        msgs.forEach((m) => appendMessage(m.role, m.content));
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      } catch {
+        console.error("Failed to load messages");
+      }
+    }
+
+    async function newChat() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/conversations`, { method: "POST" });
+        const conv = await res.json();
+        await loadConversations();
+        currentConvId = conv.id;
+        document.querySelectorAll(".conv-item").forEach((el) => {
+          el.classList.toggle("active", el.dataset.id === conv.id);
+        });
+        clearMessages();
+      } catch {
+        console.error("Failed to create conversation");
+      }
+    }
+
+    async function deleteConv(e, id) {
+      e.stopPropagation();
+      try {
+        await fetch(`${BACKEND_URL}/api/conversations/${id}`, { method: "DELETE" });
+        if (currentConvId === id) {
+          currentConvId = null;
+          clearMessages();
+        }
+        await loadConversations();
+      } catch {
+        console.error("Failed to delete conversation");
+      }
+    }
+
+    // ── Messages ──────────────────────────────────────
+    function clearMessages() {
       messagesEl.innerHTML = "";
       messagesEl.appendChild(emptyState);
       emptyState.style.display = "flex";
-      promptEl.value = "";
-      autoResize(promptEl);
     }
 
     function appendMessage(role, text = "") {
-      if (emptyState.style.display !== "none") {
-        emptyState.style.display = "none";
-      }
-
+      emptyState.style.display = "none";
       const msg = document.createElement("div");
       msg.className = "message";
-
-      const initials = role === "user" ? "你" : "AI";
       msg.innerHTML = `
         <div class="message-row">
-          <div class="avatar ${role}">${initials}</div>
-          <div class="bubble ${role}" id="bubble-${Date.now()}">${text}</div>
+          <div class="avatar ${role}">${role === "user" ? "你" : "AI"}</div>
+          <div class="bubble ${role}">${escHtml(text)}</div>
         </div>
       `;
       messagesEl.appendChild(msg);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
       return msg.querySelector(".bubble");
     }
 
     function appendThinking() {
-      if (emptyState.style.display !== "none") {
-        emptyState.style.display = "none";
-      }
+      emptyState.style.display = "none";
       const msg = document.createElement("div");
       msg.className = "message";
       msg.id = "thinking-msg";
@@ -306,9 +410,26 @@
       return msg;
     }
 
+    // ── Send ──────────────────────────────────────────
     async function sendPrompt() {
       const prompt = promptEl.value.trim();
       if (!prompt || isLoading) return;
+
+      // Auto-create conversation if none selected
+      if (!currentConvId) {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/conversations`, { method: "POST" });
+          const conv = await res.json();
+          currentConvId = conv.id;
+          await loadConversations();
+          document.querySelectorAll(".conv-item").forEach((el) => {
+            el.classList.toggle("active", el.dataset.id === conv.id);
+          });
+        } catch {
+          console.error("Failed to create conversation");
+          return;
+        }
+      }
 
       isLoading = true;
       sendBtn.disabled = true;
@@ -322,11 +443,12 @@
         const res = await fetch(`${BACKEND_URL}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt }),
+          body: JSON.stringify({ prompt, conversationId: currentConvId }),
         });
 
         thinking.remove();
         const bubble = appendMessage("ai");
+        bubble.textContent = "";
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -343,8 +465,10 @@
           for (const line of lines) {
             if (!line.startsWith("data: ")) continue;
             const data = line.slice(6);
-            if (data === "[DONE]") break;
-
+            if (data === "[DONE]") {
+              await loadConversations(); // refresh title in sidebar
+              break;
+            }
             try {
               const parsed = JSON.parse(data);
               if (parsed.error) {
@@ -367,6 +491,21 @@
       isLoading = false;
       sendBtn.disabled = promptEl.value.trim() === "";
     }
+
+    // ── Utils ─────────────────────────────────────────
+    function autoResize(el) {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 200) + "px";
+      sendBtn.disabled = el.value.trim() === "" || isLoading;
+    }
+
+    function escHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    promptEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendPrompt();
+    });
   </script>
 </body>
 </html>
