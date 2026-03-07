@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>Claude Chat</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0f4f8;
+      display: flex;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+    .container {
+      width: 100%;
+      max-width: 720px;
+    }
+    h1 {
+      font-size: 1.5rem;
+      color: #1a202c;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      resize: vertical;
+      min-height: 100px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: #667eea; }
+    button {
+      margin-top: 12px;
+      width: 100%;
+      padding: 12px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #5a67d8; }
+    button:disabled { background: #a0aec0; cursor: not-allowed; }
+    .response {
+      margin-top: 24px;
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      min-height: 80px;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      color: #2d3748;
+      border: 1px solid #e2e8f0;
+      display: none;
+    }
+    .response.visible { display: block; }
+    .error { color: #e53e3e; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Claude Chat</h1>
+    <textarea id="prompt" placeholder="输入你的提示词..."></textarea>
+    <button id="send" onclick="sendPrompt()">发送</button>
+    <div class="response" id="response"></div>
+  </div>
+
+  <script>
+    const BACKEND_URL = "http://43.160.235.189:3000";
+
+    async function sendPrompt() {
+      const promptEl = document.getElementById("prompt");
+      const responseEl = document.getElementById("response");
+      const sendBtn = document.getElementById("send");
+      const prompt = promptEl.value.trim();
+
+      if (!prompt) return;
+
+      sendBtn.disabled = true;
+      responseEl.className = "response visible";
+      responseEl.textContent = "";
+
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt }),
+        });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const data = line.slice(6);
+            if (data === "[DONE]") break;
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.error) {
+                responseEl.classList.add("error");
+                responseEl.textContent = "错误：" + parsed.error;
+              } else if (parsed.text) {
+                responseEl.textContent += parsed.text;
+              }
+            } catch {}
+          }
+        }
+      } catch (err) {
+        responseEl.classList.add("error");
+        responseEl.textContent = "连接失败，请检查后端是否启动。";
+      }
+
+      sendBtn.disabled = false;
+    }
+
+    document.getElementById("prompt").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendPrompt();
+    });
+  </script>
+</body>
+</html>
