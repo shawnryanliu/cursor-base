@@ -274,7 +274,7 @@ app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => 
 app.get("/api/photos", requireAuth, async (req, res) => {
   try {
     const [rows] = await db.query(
-      "SELECT id, url, description, created_at FROM photos ORDER BY created_at DESC"
+      "SELECT id, url, description, file_size, created_at FROM photos ORDER BY created_at DESC"
     );
     res.json(rows);
   } catch (err) {
@@ -285,15 +285,15 @@ app.get("/api/photos", requireAuth, async (req, res) => {
 
 // POST /api/photos
 app.post("/api/photos", requireAuth, async (req, res) => {
-  const { url, cosKey, description = "" } = req.body;
+  const { url, cosKey, description = "", fileSize = 0 } = req.body;
   if (!url || !cosKey) return res.status(400).json({ error: "url and cosKey are required" });
   const id = uuidv4();
   try {
     await db.query(
-      "INSERT INTO photos (id, url, cos_key, description) VALUES (?, ?, ?, ?)",
-      [id, url, cosKey, description]
+      "INSERT INTO photos (id, url, cos_key, description, file_size) VALUES (?, ?, ?, ?, ?)",
+      [id, url, cosKey, description, fileSize]
     );
-    const [[row]] = await db.query("SELECT id, url, description, created_at FROM photos WHERE id = ?", [id]);
+    const [[row]] = await db.query("SELECT id, url, description, file_size, created_at FROM photos WHERE id = ?", [id]);
     res.status(201).json(row);
   } catch (err) {
     console.error("DB error:", err.message);
@@ -400,6 +400,15 @@ app.post("/api/chat", requireAuth, async (req, res) => {
     res.write(`data: ${JSON.stringify({ error: "API call failed" })}\n\n`);
     res.end();
   }
+});
+
+// ── Global error handler (catches multer errors etc.) ──
+app.use((err, req, res, next) => {
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({ error: "File too large (max 200MB)" });
+  }
+  console.error("Unhandled error:", err.message);
+  res.status(500).json({ error: "Internal server error" });
 });
 
 app.listen(PORT, () => {
