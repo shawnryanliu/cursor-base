@@ -258,17 +258,22 @@
       background: #2a2a2a;
       border: 1px solid #3a3a3a;
       border-radius: 12px;
-      padding: 12px 18px;
+      padding: 14px 18px;
       font-size: 0.85rem;
       color: #ececec;
       display: none;
-      align-items: center;
-      gap: 10px;
+      flex-direction: column;
+      gap: 8px;
       z-index: 200;
-      min-width: 200px;
+      min-width: 220px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.4);
     }
     .toast.visible { display: flex; }
+    .toast-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
     .toast-spinner {
       width: 16px;
       height: 16px;
@@ -279,6 +284,31 @@
       flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .toast-progress-bar {
+      height: 3px;
+      background: #3a3a3a;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .toast-progress-fill {
+      height: 100%;
+      background: #19c37d;
+      border-radius: 2px;
+      transition: width 0.2s;
+      width: 0%;
+    }
+
+    .card-filesize {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(0,0,0,0.55);
+      color: #ccc;
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 10px;
+      pointer-events: none;
+    }
 
     /* ── Lightbox ── */
     .lightbox {
@@ -381,8 +411,13 @@
 
   <!-- Toast -->
   <div class="toast" id="toast">
-    <div class="toast-spinner"></div>
-    <span id="toast-text">上传中...</span>
+    <div class="toast-top">
+      <div class="toast-spinner"></div>
+      <span id="toast-text">上传中...</span>
+    </div>
+    <div class="toast-progress-bar">
+      <div class="toast-progress-fill" id="toast-progress-fill"></div>
+    </div>
   </div>
 
   <!-- Lightbox -->
@@ -453,8 +488,11 @@
       const desc = photo.description || "";
       const date = new Date(photo.created_at).toLocaleDateString("zh-CN", { month: "short", day: "numeric", year: "numeric" });
 
+      const sizeLabel = photo.file_size ? `<div class="card-filesize">${formatSize(photo.file_size)}</div>` : "";
+
       card.innerHTML = `
         <img class="card-img" src="${photo.url}" alt="${escHtml(desc)}" loading="lazy" onclick="openLightbox('${photo.url}')">
+        ${sizeLabel}
         <div class="card-overlay">
           <div class="overlay-top">
             <button class="action-btn btn-download" title="下载" onclick="downloadPhoto(event,'${photo.url}','${photo.id}')">
@@ -494,46 +532,71 @@
       files.forEach(uploadPhoto);
     }
 
-    async function uploadPhoto(file) {
+    function uploadPhoto(file) {
       uploadQueue++;
-      showToast(`上传中... (${uploadQueue} 张)`);
+      showToast(`上传中... (${uploadQueue} 张)`, 0);
       document.getElementById("upload-btn").disabled = true;
 
-      try {
-        // Step 1: upload to COS
-        const form = new FormData();
-        form.append("file", file);
-        const upRes = await authFetch(`${API}/api/upload`, { method: "POST", body: form });
-        if (!upRes.ok) throw new Error("Upload failed");
-        const { url, key } = await upRes.json();
+      const form = new FormData();
+      form.append("file", file);
 
-        // Step 2: save metadata
-        const metaRes = await authFetch(`${API}/api/photos`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, cosKey: key, description: "" }),
-        });
-        if (!metaRes.ok) throw new Error("Metadata save failed");
-        const photo = await metaRes.json();
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API}/api/upload`);
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
 
-        photos.unshift(photo);
-        const grid = document.getElementById("grid");
-        const empty = document.getElementById("empty-state");
-        empty.style.display = "none";
-        grid.insertBefore(createCard(photo), grid.firstChild);
-        document.getElementById("photo-count").textContent = `${photos.length} 张`;
-      } catch (err) {
-        console.error("Upload error:", err.message);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          showToast(`上传中... ${pct}%`, pct);
+        }
+      };
+
+      xhr.onload = async () => {
+        try {
+          if (xhr.status === 401) { logout(); return; }
+          if (xhr.status < 200 || xhr.status >= 300) throw new Error("Upload failed");
+
+          const { url, key } = JSON.parse(xhr.responseText);
+
+          // Step 2: save metadata
+          const metaRes = await authFetch(`${API}/api/photos`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, cosKey: key, description: "", fileSize: file.size }),
+          });
+          if (!metaRes.ok) throw new Error("Metadata save failed");
+          const photo = await metaRes.json();
+
+          photos.unshift(photo);
+          const grid = document.getElementById("grid");
+          document.getElementById("empty-state").style.display = "none";
+          grid.insertBefore(createCard(photo), grid.firstChild);
+          document.getElementById("photo-count").textContent = `${photos.length} 张`;
+        } catch (err) {
+          console.error("Upload error:", err.message);
+          alert("上传失败，请重试");
+        } finally {
+          uploadQueue--;
+          if (uploadQueue === 0) {
+            hideToast();
+            document.getElementById("upload-btn").disabled = false;
+          } else {
+            showToast(`上传中... (${uploadQueue} 张)`, 0);
+          }
+        }
+      };
+
+      xhr.onerror = () => {
+        console.error("XHR upload error");
         alert("上传失败，请重试");
-      } finally {
         uploadQueue--;
         if (uploadQueue === 0) {
           hideToast();
           document.getElementById("upload-btn").disabled = false;
-        } else {
-          showToast(`上传中... (${uploadQueue} 张)`);
         }
-      }
+      };
+
+      xhr.send(form);
     }
 
     // ── Delete ──────────────────────────────────────────
@@ -658,15 +721,23 @@
     });
 
     // ── Toast ─────────────────────────────────────────────
-    function showToast(msg) {
+    function showToast(msg, pct) {
       document.getElementById("toast-text").textContent = msg;
+      document.getElementById("toast-progress-fill").style.width = `${pct}%`;
       document.getElementById("toast").classList.add("visible");
     }
     function hideToast() {
       document.getElementById("toast").classList.remove("visible");
+      document.getElementById("toast-progress-fill").style.width = "0%";
     }
 
     // ── Utils ─────────────────────────────────────────────
+    function formatSize(bytes) {
+      if (!bytes) return "";
+      if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + " MB";
+      return (bytes / 1024).toFixed(0) + " KB";
+    }
+
     function escHtml(str) {
       return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
