@@ -485,7 +485,11 @@
 
     // ── Upload ──────────────────────────────────────────
     function handleFileInput(input) {
-      const files = Array.from(input.files).filter((f) => f.type.startsWith("image/"));
+      const files = Array.from(input.files).filter((f) => {
+        if (!f.type.startsWith("image/")) return false;
+        if (f.size > 50 * 1024 * 1024) { alert(`${f.name} 超过 50MB 限制，已跳过`); return false; }
+        return true;
+      });
       input.value = "";
       files.forEach(uploadPhoto);
     }
@@ -645,7 +649,11 @@
       e.preventDefault();
       dragCounter = 0;
       dropOverlay.classList.remove("visible");
-      const files = [...e.dataTransfer.files].filter((f) => f.type.startsWith("image/"));
+      const files = [...e.dataTransfer.files].filter((f) => {
+        if (!f.type.startsWith("image/")) return false;
+        if (f.size > 50 * 1024 * 1024) { alert(`${f.name} 超过 50MB 限制，已跳过`); return false; }
+        return true;
+      });
       files.forEach(uploadPhoto);
     });
 
