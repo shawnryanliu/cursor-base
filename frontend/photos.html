@@ -297,6 +297,13 @@
       transition: width 0.2s;
       width: 0%;
     }
+    .toast-progress-fill.pulse {
+      animation: pulse-bar 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse-bar {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
 
     .card-filesize {
       position: absolute;
@@ -552,6 +559,10 @@
         }
       };
 
+      xhr.upload.onload = () => {
+        showToast("处理中...", 100, true);
+      };
+
       xhr.onload = async () => {
         try {
           if (xhr.status === 401) { logout(); return; }
@@ -722,14 +733,18 @@
     });
 
     // ── Toast ─────────────────────────────────────────────
-    function showToast(msg, pct) {
+    function showToast(msg, pct, pulse = false) {
       document.getElementById("toast-text").textContent = msg;
-      document.getElementById("toast-progress-fill").style.width = `${pct}%`;
+      const fill = document.getElementById("toast-progress-fill");
+      fill.style.width = `${pct}%`;
+      fill.classList.toggle("pulse", pulse);
       document.getElementById("toast").classList.add("visible");
     }
     function hideToast() {
       document.getElementById("toast").classList.remove("visible");
-      document.getElementById("toast-progress-fill").style.width = "0%";
+      const fill = document.getElementById("toast-progress-fill");
+      fill.style.width = "0%";
+      fill.classList.remove("pulse");
     }
 
     // ── Utils ─────────────────────────────────────────────
