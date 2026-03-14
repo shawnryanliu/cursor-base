@@ -12,6 +12,8 @@ if [ -f "backend/package.json" ]; then
 fi
 
 echo "==> Restarting backend..."
+fuser -k 4000/tcp 2>/dev/null || true
+sleep 1
 pm2 restart claude-chat --update-env
 
 echo "==> Done."
