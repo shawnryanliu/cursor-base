@@ -4,6 +4,14 @@ const cors = require("cors");
 const Anthropic = require("@anthropic-ai/sdk");
 const mysql = require("mysql2/promise");
 const { v4: uuidv4 } = require("uuid");
+const multer = require("multer");
+const COS = require("cos-nodejs-sdk-v5");
+
+const cos = new COS({
+  SecretId: process.env.COS_SECRET_ID,
+  SecretKey: process.env.COS_SECRET_KEY,
+});
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -81,6 +89,34 @@ app.delete("/api/conversations/:id", async (req, res) => {
   } catch (err) {
     console.error("DB error:", err.message);
     res.status(500).json({ error: "Database error" });
+  }
+});
+
+// POST /api/upload - upload image to COS
+app.post("/api/upload", upload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file provided" });
+
+  const ext = req.file.originalname.split(".").pop().toLowerCase();
+  const allowed = ["jpg", "jpeg", "png", "gif", "webp"];
+  if (!allowed.includes(ext)) {
+    return res.status(400).json({ error: "File type not allowed" });
+  }
+
+  const key = `uploads/${Date.now()}-${uuidv4()}.${ext}`;
+
+  try {
+    await cos.putObject({
+      Bucket: process.env.COS_BUCKET,
+      Region: process.env.COS_REGION,
+      Key: key,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+    });
+    const url = `https://${process.env.COS_BUCKET}.cos.${process.env.COS_REGION}.myqcloud.com/${key}`;
+    res.json({ url });
+  } catch (err) {
+    console.error("COS upload error:", err.message);
+    res.status(500).json({ error: "Upload failed" });
   }
 });
 
