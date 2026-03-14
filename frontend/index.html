@@ -212,64 +212,93 @@
     .send-btn:hover { background: #15a367; }
     .send-btn:disabled { background: #3a3a3a; cursor: not-allowed; opacity: 0.6; }
 
-    .upload-btn {
-      width: 34px;
-      height: 34px;
-      background: none;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
+    .sidebar-upload-btn {
       display: flex;
       align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      color: #8e8ea0;
-      transition: background 0.15s, color 0.15s;
-    }
-    .upload-btn:hover { background: #2a2a2a; color: #ececec; }
-    .upload-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .image-preview {
-      display: flex;
-      flex-wrap: wrap;
       gap: 8px;
-      padding: 8px 0 0;
-    }
-    .image-preview-item {
-      position: relative;
-      width: 72px;
-      height: 72px;
-    }
-    .image-preview-item img {
       width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border-radius: 6px;
-      border: 1px solid #3a3a3a;
-    }
-    .image-preview-item .remove-img {
-      position: absolute;
-      top: -6px;
-      right: -6px;
-      width: 18px;
-      height: 18px;
-      background: #555;
-      border: none;
-      border-radius: 50%;
-      color: #fff;
-      font-size: 11px;
+      padding: 8px 10px;
+      background: none;
+      border: 1px dashed #3a3a3a;
+      border-radius: 8px;
+      color: #8e8ea0;
+      font-size: 0.8rem;
       cursor: pointer;
-      display: flex;
+      margin-top: 8px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .sidebar-upload-btn:hover { border-color: #19c37d; color: #19c37d; }
+
+    /* Upload result modal */
+    .upload-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
       align-items: center;
       justify-content: center;
-      line-height: 1;
     }
-    .bubble img {
-      max-width: 240px;
-      max-height: 240px;
+    .upload-modal.open { display: flex; }
+    .upload-modal-box {
+      background: #2a2a2a;
+      border-radius: 12px;
+      padding: 24px;
+      width: 420px;
+      max-width: 90vw;
+    }
+    .upload-modal-box h3 { font-size: 1rem; margin-bottom: 16px; color: #ececec; }
+    .upload-result-img {
+      width: 100%;
+      max-height: 200px;
+      object-fit: contain;
       border-radius: 8px;
-      display: block;
-      margin-top: 6px;
+      background: #1a1a1a;
+      margin-bottom: 12px;
+    }
+    .upload-url-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .upload-url-input {
+      flex: 1;
+      background: #1a1a1a;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      color: #ececec;
+      padding: 6px 10px;
+      font-size: 0.78rem;
+      outline: none;
+    }
+    .copy-btn {
+      padding: 6px 14px;
+      background: #19c37d;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.8rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .copy-btn:hover { background: #15a367; }
+    .upload-modal-close {
+      margin-top: 16px;
+      width: 100%;
+      padding: 8px;
+      background: #3a3a3a;
+      border: none;
+      border-radius: 6px;
+      color: #ececec;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .upload-modal-close:hover { background: #444; }
+    .upload-progress {
+      text-align: center;
+      color: #8e8ea0;
+      font-size: 0.85rem;
+      padding: 20px 0;
     }
 
     .hint {
@@ -313,6 +342,23 @@
       </button>
     </div>
     <div class="conv-list" id="conv-list"></div>
+    <button class="sidebar-upload-btn" onclick="document.getElementById('upload-file-input').click()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+      上传图片
+    </button>
+    <input type="file" id="upload-file-input" accept="image/*" style="display:none" onchange="handleUpload(this)">
+  </div>
+
+  <!-- Upload result modal -->
+  <div class="upload-modal" id="upload-modal" onclick="closeUploadModal(event)">
+    <div class="upload-modal-box">
+      <h3>图片上传</h3>
+      <div id="upload-modal-content"></div>
+      <button class="upload-modal-close" onclick="closeUploadModal()">关闭</button>
+    </div>
   </div>
 
   <!-- Main -->
@@ -332,20 +378,12 @@
           rows="1"
           oninput="autoResize(this)"
         ></textarea>
-        <button class="upload-btn" id="upload-btn" onclick="document.getElementById('file-input').click()" title="上传图片">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
-          </svg>
-        </button>
-        <input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="handleFileSelect(this)">
         <button class="send-btn" id="send-btn" onclick="sendPrompt()" disabled>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
           </svg>
         </button>
       </div>
-      <div id="image-preview" class="image-preview"></div>
       <div class="hint">Ctrl+Enter 发送</div>
     </div>
   </div>
@@ -354,15 +392,12 @@
     const BACKEND_URL = "";
     let currentConvId = null;
     let isLoading = false;
-    let pendingImages = []; // [{ file, previewUrl }]
 
     const promptEl = document.getElementById("prompt");
     const sendBtn = document.getElementById("send-btn");
     const messagesEl = document.getElementById("messages");
     const emptyState = document.getElementById("empty-state");
     const convList = document.getElementById("conv-list");
-    const imagePreviewEl = document.getElementById("image-preview");
-    const uploadBtn = document.getElementById("upload-btn");
 
     // ── Init ──────────────────────────────────────────
     loadConversations();
@@ -481,52 +516,54 @@
       return msg;
     }
 
-    // ── Image upload ──────────────────────────────────
-    function handleFileSelect(input) {
-      Array.from(input.files).forEach((file) => {
-        const previewUrl = URL.createObjectURL(file);
-        pendingImages.push({ file, previewUrl });
-        renderImagePreviews();
-      });
+    // ── Image upload (standalone) ─────────────────────
+    async function handleUpload(input) {
+      const file = input.files[0];
       input.value = "";
-      sendBtn.disabled = promptEl.value.trim() === "" && pendingImages.length === 0 || isLoading;
-    }
+      if (!file) return;
 
-    function renderImagePreviews() {
-      imagePreviewEl.innerHTML = "";
-      pendingImages.forEach((img, idx) => {
-        const item = document.createElement("div");
-        item.className = "image-preview-item";
-        item.innerHTML = `
-          <img src="${img.previewUrl}" alt="preview">
-          <button class="remove-img" onclick="removeImage(${idx})">✕</button>
-        `;
-        imagePreviewEl.appendChild(item);
-      });
-    }
+      const modal = document.getElementById("upload-modal");
+      const content = document.getElementById("upload-modal-content");
+      modal.classList.add("open");
+      content.innerHTML = `<div class="upload-progress">上传中...</div>`;
 
-    function removeImage(idx) {
-      URL.revokeObjectURL(pendingImages[idx].previewUrl);
-      pendingImages = pendingImages.filter((_, i) => i !== idx);
-      renderImagePreviews();
-      sendBtn.disabled = promptEl.value.trim() === "" && pendingImages.length === 0 || isLoading;
-    }
+      const formData = new FormData();
+      formData.append("file", file);
 
-    async function uploadImages() {
-      return Promise.all(pendingImages.map(async ({ file }) => {
-        const formData = new FormData();
-        formData.append("file", file);
+      try {
         const res = await fetch(`${BACKEND_URL}/api/upload`, { method: "POST", body: formData });
         if (!res.ok) throw new Error("Upload failed");
         const { url } = await res.json();
-        return url;
-      }));
+        content.innerHTML = `
+          <img class="upload-result-img" src="${url}" alt="uploaded">
+          <div class="upload-url-row">
+            <input class="upload-url-input" id="upload-url-val" value="${url}" readonly>
+            <button class="copy-btn" onclick="copyUrl()">复制链接</button>
+          </div>
+        `;
+      } catch {
+        content.innerHTML = `<div class="upload-progress" style="color:#e55;">上传失败，请重试</div>`;
+      }
+    }
+
+    function copyUrl() {
+      const input = document.getElementById("upload-url-val");
+      navigator.clipboard.writeText(input.value).then(() => {
+        const btn = document.querySelector(".copy-btn");
+        btn.textContent = "已复制";
+        setTimeout(() => { btn.textContent = "复制链接"; }, 2000);
+      });
+    }
+
+    function closeUploadModal(e) {
+      if (e && e.target !== document.getElementById("upload-modal")) return;
+      document.getElementById("upload-modal").classList.remove("open");
     }
 
     // ── Send ──────────────────────────────────────────
     async function sendPrompt() {
       const prompt = promptEl.value.trim();
-      if ((!prompt && pendingImages.length === 0) || isLoading) return;
+      if (!prompt || isLoading) return;
 
       // Auto-create conversation if none selected
       if (!currentConvId) {
@@ -546,45 +583,17 @@
 
       isLoading = true;
       sendBtn.disabled = true;
-      uploadBtn.disabled = true;
       promptEl.value = "";
       promptEl.style.height = "auto";
 
-      // Upload images first
-      let imageUrls = [];
-      if (pendingImages.length > 0) {
-        try {
-          imageUrls = await uploadImages();
-        } catch {
-          isLoading = false;
-          sendBtn.disabled = false;
-          uploadBtn.disabled = false;
-          alert("图片上传失败，请重试");
-          return;
-        }
-        pendingImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
-        pendingImages = [];
-        imagePreviewEl.innerHTML = "";
-      }
-
-      // Show user message with images
-      const userBubble = appendMessage("user", prompt);
-      imageUrls.forEach((url) => {
-        const img = document.createElement("img");
-        img.src = url;
-        userBubble.appendChild(img);
-      });
-
-      const fullPrompt = imageUrls.length > 0
-        ? `${prompt}\n${imageUrls.map((u) => `[图片: ${u}]`).join("\n")}`.trim()
-        : prompt;
+      appendMessage("user", prompt);
       const thinking = appendThinking();
 
       try {
         const res = await fetch(`${BACKEND_URL}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: fullPrompt, conversationId: currentConvId }),
+          body: JSON.stringify({ prompt, conversationId: currentConvId }),
         });
 
         thinking.remove();
@@ -630,15 +639,14 @@
       }
 
       isLoading = false;
-      uploadBtn.disabled = false;
-      sendBtn.disabled = promptEl.value.trim() === "" && pendingImages.length === 0;
+      sendBtn.disabled = promptEl.value.trim() === "";
     }
 
     // ── Utils ─────────────────────────────────────────
     function autoResize(el) {
       el.style.height = "auto";
       el.style.height = Math.min(el.scrollHeight, 200) + "px";
-      sendBtn.disabled = (el.value.trim() === "" && pendingImages.length === 0) || isLoading;
+      sendBtn.disabled = el.value.trim() === "" || isLoading;
     }
 
     function escHtml(str) {
