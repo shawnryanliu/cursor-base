@@ -113,10 +113,70 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       ContentType: req.file.mimetype,
     });
     const url = `https://${process.env.COS_BUCKET}.cos.${process.env.COS_REGION}.myqcloud.com/${key}`;
-    res.json({ url });
+    res.json({ url, key });
   } catch (err) {
     console.error("COS upload error:", err.message);
     res.status(500).json({ error: "Upload failed" });
+  }
+});
+
+// GET /api/photos - list all photos
+app.get("/api/photos", async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT id, url, description, created_at FROM photos ORDER BY created_at DESC"
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("DB error:", err.message);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// POST /api/photos - save photo metadata
+app.post("/api/photos", async (req, res) => {
+  const { url, cosKey, description = "" } = req.body;
+  if (!url || !cosKey) return res.status(400).json({ error: "url and cosKey are required" });
+  const id = uuidv4();
+  try {
+    await db.query(
+      "INSERT INTO photos (id, url, cos_key, description) VALUES (?, ?, ?, ?)",
+      [id, url, cosKey, description]
+    );
+    const [[row]] = await db.query("SELECT id, url, description, created_at FROM photos WHERE id = ?", [id]);
+    res.status(201).json(row);
+  } catch (err) {
+    console.error("DB error:", err.message);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// PUT /api/photos/:id - update description
+app.put("/api/photos/:id", async (req, res) => {
+  const { description } = req.body;
+  if (description === undefined) return res.status(400).json({ error: "description is required" });
+  try {
+    const [[photo]] = await db.query("SELECT id FROM photos WHERE id = ?", [req.params.id]);
+    if (!photo) return res.status(404).json({ error: "Photo not found" });
+    await db.query("UPDATE photos SET description = ? WHERE id = ?", [description, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("DB error:", err.message);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// DELETE /api/photos/:id - delete from COS and DB
+app.delete("/api/photos/:id", async (req, res) => {
+  try {
+    const [[photo]] = await db.query("SELECT id, cos_key FROM photos WHERE id = ?", [req.params.id]);
+    if (!photo) return res.status(404).json({ error: "Photo not found" });
+    await cos.deleteObject({ Bucket: process.env.COS_BUCKET, Region: process.env.COS_REGION, Key: photo.cos_key });
+    await db.query("DELETE FROM photos WHERE id = ?", [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Delete error:", err.message);
+    res.status(500).json({ error: "Delete failed" });
   }
 });
 

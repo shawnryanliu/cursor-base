@@ -212,6 +212,20 @@
     .send-btn:hover { background: #15a367; }
     .send-btn:disabled { background: #3a3a3a; cursor: not-allowed; opacity: 0.6; }
 
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      color: #8e8ea0;
+      font-size: 0.875rem;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+      margin-bottom: 2px;
+    }
+    .nav-link:hover { background: #2a2a2a; color: #ececec; }
+
     .sidebar-upload-btn {
       display: flex;
       align-items: center;
@@ -342,6 +356,13 @@
       </button>
     </div>
     <div class="conv-list" id="conv-list"></div>
+    <a class="nav-link" href="/photos.html">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+      </svg>
+      相册
+    </a>
     <button class="sidebar-upload-btn" onclick="document.getElementById('upload-file-input').click()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
