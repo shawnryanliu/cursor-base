@@ -15,7 +15,7 @@ const cos = new COS({
   SecretId: process.env.COS_SECRET_ID,
   SecretKey: process.env.COS_SECRET_KEY,
 });
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 // ── Email transporter ────────────────────────────────
 const mailer = nodemailer.createTransport({
