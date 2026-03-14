@@ -77,18 +77,46 @@
     .conv-list {
       flex: 1;
       overflow-y: auto;
+      padding-bottom: 4px;
     }
     .conv-list::-webkit-scrollbar { width: 4px; }
     .conv-list::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+    /* Group header */
+    .conv-group { margin-bottom: 2px; }
+    .conv-group-header {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 10px 4px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .conv-group-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #555;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      flex: 1;
+    }
+    .conv-group-arrow {
+      color: #444;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+    .conv-group.collapsed .conv-group-arrow { transform: rotate(-90deg); }
+    .conv-group-body { overflow: hidden; }
+    .conv-group.collapsed .conv-group-body { display: none; }
 
     .conv-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 12px;
+      padding: 7px 10px;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 0.875rem;
+      font-size: 0.855rem;
       color: #adadad;
       transition: background 0.15s;
       gap: 8px;
@@ -484,23 +512,90 @@
       }
     }
 
+    // Track which groups are collapsed (persisted in sessionStorage)
+    const collapsedGroups = new Set(
+      JSON.parse(sessionStorage.getItem("collapsedGroups") || "[]")
+    );
+
+    function saveCollapsedGroups() {
+      sessionStorage.setItem("collapsedGroups", JSON.stringify([...collapsedGroups]));
+    }
+
+    function groupConvs(convs) {
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startOfYesterday = new Date(startOfToday - 86400000);
+      const startOf7Days = new Date(startOfToday - 6 * 86400000);
+      const startOf30Days = new Date(startOfToday - 29 * 86400000);
+
+      const groups = [
+        { key: "today",   label: "今天",      items: [] },
+        { key: "yest",    label: "昨天",      items: [] },
+        { key: "week",    label: "最近 7 天", items: [] },
+        { key: "month",   label: "最近 30 天",items: [] },
+        { key: "older",   label: "更早",      items: [] },
+      ];
+
+      convs.forEach((c) => {
+        const d = new Date(c.updated_at || c.created_at);
+        if (d >= startOfToday)       groups[0].items.push(c);
+        else if (d >= startOfYesterday) groups[1].items.push(c);
+        else if (d >= startOf7Days)  groups[2].items.push(c);
+        else if (d >= startOf30Days) groups[3].items.push(c);
+        else                         groups[4].items.push(c);
+      });
+
+      return groups.filter((g) => g.items.length > 0);
+    }
+
+    function makeConvItem(c) {
+      const item = document.createElement("div");
+      item.className = "conv-item" + (c.id === currentConvId ? " active" : "");
+      item.dataset.id = c.id;
+      item.innerHTML = `
+        <span class="conv-item-title">${escHtml(c.title)}</span>
+        <button class="conv-delete" onclick="deleteConv(event, '${c.id}')" title="删除">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+            <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+          </svg>
+        </button>
+      `;
+      item.addEventListener("click", () => openConversation(c.id));
+      return item;
+    }
+
     function renderConvList(convs) {
       convList.innerHTML = "";
-      convs.forEach((c) => {
-        const item = document.createElement("div");
-        item.className = "conv-item" + (c.id === currentConvId ? " active" : "");
-        item.dataset.id = c.id;
-        item.innerHTML = `
-          <span class="conv-item-title">${escHtml(c.title)}</span>
-          <button class="conv-delete" onclick="deleteConv(event, '${c.id}')" title="删除">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
-              <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-            </svg>
-          </button>
+      const groups = groupConvs(convs);
+
+      groups.forEach(({ key, label, items }) => {
+        const group = document.createElement("div");
+        group.className = "conv-group" + (collapsedGroups.has(key) ? " collapsed" : "");
+        group.dataset.key = key;
+
+        const header = document.createElement("div");
+        header.className = "conv-group-header";
+        header.innerHTML = `
+          <span class="conv-group-label">${label}</span>
+          <svg class="conv-group-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
         `;
-        item.addEventListener("click", () => openConversation(c.id));
-        convList.appendChild(item);
+        header.addEventListener("click", () => {
+          group.classList.toggle("collapsed");
+          if (group.classList.contains("collapsed")) collapsedGroups.add(key);
+          else collapsedGroups.delete(key);
+          saveCollapsedGroups();
+        });
+
+        const body = document.createElement("div");
+        body.className = "conv-group-body";
+        items.forEach((c) => body.appendChild(makeConvItem(c)));
+
+        group.appendChild(header);
+        group.appendChild(body);
+        convList.appendChild(group);
       });
     }
 
