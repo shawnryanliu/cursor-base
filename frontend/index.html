@@ -36,6 +36,29 @@
       color: #8e8ea0;
       letter-spacing: 0.05em;
     }
+    .user-info {
+      padding: 8px 10px;
+      font-size: 0.78rem;
+      color: #555;
+      word-break: break-all;
+    }
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      width: 100%;
+      padding: 8px 10px;
+      background: none;
+      border: none;
+      color: #8e8ea0;
+      font-size: 0.82rem;
+      cursor: pointer;
+      border-radius: 8px;
+      text-align: left;
+      margin-top: 4px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .logout-btn:hover { background: #2a2a2a; color: #e55; }
     .new-chat-btn {
       display: flex;
       align-items: center;
@@ -363,6 +386,15 @@
       </svg>
       相册
     </a>
+    <div style="flex:1"></div>
+    <div class="user-info" id="user-email"></div>
+    <button class="logout-btn" onclick="logout()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      退出登录
+    </button>
     <button class="sidebar-upload-btn" onclick="document.getElementById('upload-file-input').click()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
@@ -411,6 +443,32 @@
 
   <script>
     const BACKEND_URL = "";
+
+    // ── Auth ───────────────────────────────────────────
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "/login.html";
+    document.getElementById("user-email").textContent = localStorage.getItem("email") || "";
+
+    function authHeaders() {
+      return { "Authorization": `Bearer ${token}` };
+    }
+
+    function authFetch(url, opts = {}) {
+      return fetch(url, {
+        ...opts,
+        headers: { ...authHeaders(), ...(opts.headers || {}) },
+      }).then((res) => {
+        if (res.status === 401) { logout(); }
+        return res;
+      });
+    }
+
+    function logout() {
+      localStorage.removeItem("token");
+      localStorage.removeItem("email");
+      window.location.href = "/login.html";
+    }
+
     let currentConvId = null;
     let isLoading = false;
 
@@ -426,7 +484,7 @@
     // ── Sidebar ───────────────────────────────────────
     async function loadConversations() {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/conversations`);
+        const res = await authFetch(`${BACKEND_URL}/api/conversations`);
         const convs = await res.json();
         renderConvList(convs);
       } catch {
@@ -462,7 +520,7 @@
       clearMessages();
 
       try {
-        const res = await fetch(`${BACKEND_URL}/api/conversations/${id}/messages`);
+        const res = await authFetch(`${BACKEND_URL}/api/conversations/${id}/messages`);
         const msgs = await res.json();
         msgs.forEach((m) => appendMessage(m.role, m.content));
         messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -473,7 +531,7 @@
 
     async function newChat() {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/conversations`, { method: "POST" });
+        const res = await authFetch(`${BACKEND_URL}/api/conversations`, { method: "POST" });
         const conv = await res.json();
         await loadConversations();
         currentConvId = conv.id;
@@ -489,7 +547,7 @@
     async function deleteConv(e, id) {
       e.stopPropagation();
       try {
-        await fetch(`${BACKEND_URL}/api/conversations/${id}`, { method: "DELETE" });
+        await authFetch(`${BACKEND_URL}/api/conversations/${id}`, { method: "DELETE" });
         if (currentConvId === id) {
           currentConvId = null;
           clearMessages();
@@ -552,7 +610,7 @@
       formData.append("file", file);
 
       try {
-        const res = await fetch(`${BACKEND_URL}/api/upload`, { method: "POST", body: formData });
+        const res = await authFetch(`${BACKEND_URL}/api/upload`, { method: "POST", body: formData });
         if (!res.ok) throw new Error("Upload failed");
         const { url } = await res.json();
         content.innerHTML = `
@@ -589,7 +647,7 @@
       // Auto-create conversation if none selected
       if (!currentConvId) {
         try {
-          const res = await fetch(`${BACKEND_URL}/api/conversations`, { method: "POST" });
+          const res = await authFetch(`${BACKEND_URL}/api/conversations`, { method: "POST" });
           const conv = await res.json();
           currentConvId = conv.id;
           await loadConversations();
@@ -611,7 +669,7 @@
       const thinking = appendThinking();
 
       try {
-        const res = await fetch(`${BACKEND_URL}/api/chat`, {
+        const res = await authFetch(`${BACKEND_URL}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt, conversationId: currentConvId }),

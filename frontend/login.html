@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - MiniMax Chat</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #212121;
+      color: #ececec;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 400px;
+      padding: 24px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .logo h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #ececec;
+    }
+    .logo p {
+      color: #8e8ea0;
+      font-size: 0.85rem;
+      margin-top: 6px;
+    }
+
+    .card {
+      background: #2a2a2a;
+      border-radius: 16px;
+      padding: 32px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: #1a1a1a;
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 28px;
+    }
+    .tab {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 7px;
+      background: transparent;
+      color: #8e8ea0;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tab.active {
+      background: #2a2a2a;
+      color: #ececec;
+      font-weight: 600;
+    }
+
+    .form { display: none; }
+    .form.active { display: block; }
+
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block;
+      font-size: 0.82rem;
+      color: #8e8ea0;
+      margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      color: #ececec;
+      padding: 10px 14px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.15s;
+      font-family: inherit;
+    }
+    .field input:focus { border-color: #19c37d; }
+    .field input::placeholder { color: #555; }
+
+    .submit-btn {
+      width: 100%;
+      padding: 11px;
+      background: #19c37d;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.15s;
+      font-family: inherit;
+    }
+    .submit-btn:hover { background: #15a367; }
+    .submit-btn:disabled { background: #3a3a3a; cursor: not-allowed; }
+
+    .msg {
+      margin-top: 16px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      display: none;
+    }
+    .msg.error { background: rgba(229,85,85,0.15); color: #e55; border: 1px solid rgba(229,85,85,0.3); }
+    .msg.success { background: rgba(25,195,125,0.15); color: #19c37d; border: 1px solid rgba(25,195,125,0.3); }
+    .msg.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <h1>MiniMax Chat</h1>
+      <p>由 MiniMax-M2.5 驱动</p>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('login')">登录</button>
+        <button class="tab" onclick="switchTab('register')">注册</button>
+      </div>
+
+      <!-- Login form -->
+      <div class="form active" id="login-form">
+        <div class="field">
+          <label>邮箱地址</label>
+          <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"
+            onkeydown="if(event.key==='Enter') doLogin()">
+        </div>
+        <button class="submit-btn" id="login-btn" onclick="doLogin()">登录</button>
+        <div class="msg" id="login-msg"></div>
+      </div>
+
+      <!-- Register form -->
+      <div class="form" id="register-form">
+        <div class="field">
+          <label>邮箱地址</label>
+          <input type="email" id="reg-email" placeholder="your@email.com" autocomplete="email">
+        </div>
+        <div class="field">
+          <label>密码（至少 8 位）</label>
+          <input type="password" id="reg-password" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label>确认密码</label>
+          <input type="password" id="reg-password2" placeholder="••••••••" autocomplete="new-password"
+            onkeydown="if(event.key==='Enter') doRegister()">
+        </div>
+        <button class="submit-btn" id="reg-btn" onclick="doRegister()">提交申请</button>
+        <div class="msg" id="reg-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Redirect if already logged in
+    if (localStorage.getItem("token")) {
+      window.location.href = "/index.html";
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll(".tab").forEach((t, i) => {
+        t.classList.toggle("active", (i === 0) === (tab === "login"));
+      });
+      document.getElementById("login-form").classList.toggle("active", tab === "login");
+      document.getElementById("register-form").classList.toggle("active", tab === "register");
+    }
+
+    function showMsg(id, text, type) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = `msg ${type} visible`;
+    }
+
+    async function doLogin() {
+      const email = document.getElementById("login-email").value.trim();
+      const password = document.getElementById("login-password").value;
+      if (!email || !password) return showMsg("login-msg", "请填写邮箱和密码", "error");
+
+      const btn = document.getElementById("login-btn");
+      btn.disabled = true;
+      btn.textContent = "登录中...";
+
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showMsg("login-msg", data.error || "登录失败", "error");
+        } else {
+          localStorage.setItem("token", data.token);
+          localStorage.setItem("email", data.email);
+          window.location.href = "/index.html";
+        }
+      } catch {
+        showMsg("login-msg", "网络错误，请重试", "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "登录";
+      }
+    }
+
+    async function doRegister() {
+      const email = document.getElementById("reg-email").value.trim();
+      const password = document.getElementById("reg-password").value;
+      const password2 = document.getElementById("reg-password2").value;
+
+      if (!email || !password) return showMsg("reg-msg", "请填写所有字段", "error");
+      if (password !== password2) return showMsg("reg-msg", "两次密码不一致", "error");
+      if (password.length < 8) return showMsg("reg-msg", "密码至少 8 位", "error");
+
+      const btn = document.getElementById("reg-btn");
+      btn.disabled = true;
+      btn.textContent = "提交中...";
+
+      try {
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showMsg("reg-msg", data.error || "注册失败", "error");
+        } else {
+          showMsg("reg-msg", "申请已提交！管理员审核通过后即可登录。", "success");
+          document.getElementById("reg-email").value = "";
+          document.getElementById("reg-password").value = "";
+          document.getElementById("reg-password2").value = "";
+        }
+      } catch {
+        showMsg("reg-msg", "网络错误，请重试", "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "提交申请";
+      }
+    }
+  </script>
+</body>
+</html>

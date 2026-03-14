@@ -46,6 +46,30 @@
     }
     .nav-link:hover { background: #2a2a2a; color: #ececec; }
     .nav-link.active { background: #2a2a2a; color: #ececec; }
+    .user-info {
+      padding: 8px 10px;
+      font-size: 0.78rem;
+      color: #555;
+      word-break: break-all;
+      margin-top: auto;
+    }
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      width: 100%;
+      padding: 8px 10px;
+      background: none;
+      border: none;
+      color: #8e8ea0;
+      font-size: 0.82rem;
+      cursor: pointer;
+      border-radius: 8px;
+      text-align: left;
+      margin-top: 4px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .logout-btn:hover { background: #2a2a2a; color: #e55; }
 
     /* ── Main ── */
     .main {
@@ -310,6 +334,15 @@
       </svg>
       相册
     </a>
+    <div style="flex:1"></div>
+    <div class="user-info" id="user-email"></div>
+    <button class="logout-btn" onclick="logout()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      退出登录
+    </button>
   </div>
 
   <!-- Main -->
@@ -360,6 +393,25 @@
 
   <script>
     const API = "";
+
+    // ── Auth ───────────────────────────────────────────
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "/login.html";
+    document.getElementById("user-email").textContent = localStorage.getItem("email") || "";
+
+    function authFetch(url, opts = {}) {
+      return fetch(url, {
+        ...opts,
+        headers: { "Authorization": `Bearer ${token}`, ...(opts.headers || {}) },
+      }).then((res) => { if (res.status === 401) logout(); return res; });
+    }
+
+    function logout() {
+      localStorage.removeItem("token");
+      localStorage.removeItem("email");
+      window.location.href = "/login.html";
+    }
+
     let photos = [];
     let uploadQueue = 0;
 
@@ -368,7 +420,7 @@
 
     async function loadPhotos() {
       try {
-        const res = await fetch(`${API}/api/photos`);
+        const res = await authFetch(`${API}/api/photos`);
         photos = await res.json();
         renderGrid();
       } catch {
@@ -447,12 +499,12 @@
         // Step 1: upload to COS
         const form = new FormData();
         form.append("file", file);
-        const upRes = await fetch(`${API}/api/upload`, { method: "POST", body: form });
+        const upRes = await authFetch(`${API}/api/upload`, { method: "POST", body: form });
         if (!upRes.ok) throw new Error("Upload failed");
         const { url, key } = await upRes.json();
 
         // Step 2: save metadata
-        const metaRes = await fetch(`${API}/api/photos`, {
+        const metaRes = await authFetch(`${API}/api/photos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url, cosKey: key, description: "" }),
@@ -485,7 +537,7 @@
       e.stopPropagation();
       if (!confirm("确定删除这张照片？")) return;
       try {
-        const res = await fetch(`${API}/api/photos/${id}`, { method: "DELETE" });
+        const res = await authFetch(`${API}/api/photos/${id}`, { method: "DELETE" });
         if (!res.ok) throw new Error("Delete failed");
         photos = photos.filter((p) => p.id !== id);
         document.querySelector(`.photo-card[data-id="${id}"]`)?.remove();
@@ -541,7 +593,7 @@
       textEl.classList.toggle("empty", !desc);
 
       try {
-        await fetch(`${API}/api/photos/${id}`, {
+        await authFetch(`${API}/api/photos/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ description: desc }),
